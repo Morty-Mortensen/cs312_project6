@@ -312,7 +312,7 @@ class TSPSolver:
 		best solution found.  You may use the other three field however you like.
 		algorithm</returns> 
 	'''
-		
+
 	def fancy( self,time_allowance=60.0 ):
 		# try:
 		# 	filename = sys.argv[1]
@@ -324,18 +324,18 @@ class TSPSolver:
 
 		# prices,names = self._input(filename)
 
-		cities = self._scenario.getCities()
-		ncities = len(cities)
+		self.cities = self._scenario.getCities()
+		ncities = len(self.cities)
 
 		arcs = []
-		for city in cities:
-			for inner_city in cities:
+		for city in self.cities:
+			for inner_city in self.cities:
 				if inner_city != city:
 					arcs.append((city,inner_city))
 
 
 		g = self._load(arcs)
-		h = self.mst(int(cities[0]._index),g)
+		h = self.mst(int(self.cities[0]._index),g)
 		for s in h:
 			for t in h[s]:
 				print("%d-%d" % (s,t))
@@ -365,20 +365,20 @@ class TSPSolver:
 	def _load(self, arcs):
 		g = {}
 		for (src,dst) in arcs:
-			if src in g:
+			if src._index in g:
 				g[src._index][dst._index] = src.costTo(dst)
 			else:
-				g[src._index] = { dst : src.costTo(dst) }
+				g[src._index] = { dst._index : src.costTo(dst) }
 		return g
 
 	def _reverse(self, graph):
 		r = {}
-		for src in graph:
-			for (dst,c) in graph[src._index]:
-				if dst in r:
-					r[dst._index][src._index] = c
+		for src_index in graph:
+			for (dst_index,c) in graph[src_index].items():
+				if dst_index in r:
+					r[dst_index][src_index] = c
 				else:
-					r[dst._index] = { src : c }
+					r[dst_index] = { src_index : c }
 		return r
 
 	def _getCycle(self, n, g, visited=None, cycle=None):
