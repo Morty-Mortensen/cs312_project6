@@ -1,10 +1,11 @@
 #!/usr/bin/python3
+import math
 
 from which_pyqt import PYQT_VER
 if PYQT_VER == 'PYQT5':
 	from PyQt5.QtCore import QLineF, QPointF
-elif PYQT_VER == 'PYQT4':
-	from PyQt4.QtCore import QLineF, QPointF
+#elif PYQT_VER == 'PYQT4':
+#	from PyQt4.QtCore import QLineF, QPointF
 else:
 	raise Exception('Unsupported Version of PyQt: {}'.format(PYQT_VER))
 
@@ -328,8 +329,8 @@ class TSPSolver:
 		ncities = len(self.cities)
 
 		arcs = []
-		for city in self.cities:
-			for inner_city in self.cities:
+		for city in self.cities:#city is the starting city
+			for inner_city in self.cities:#inner_city is destination city
 				if inner_city != city:
 					arcs.append((city,inner_city))
 
@@ -374,23 +375,23 @@ class TSPSolver:
 	def _reverse(self, graph):
 		r = {}
 		for src_index in graph:
-			for (dst_index,c) in graph[src_index].items():
+			for (dst_index,c) in graph[src_index].items():#item() = { dst._index : src.costTo(dst) }
 				if dst_index in r:
 					r[dst_index][src_index] = c
 				else:
 					r[dst_index] = { src_index : c }
 		return r
 
-	def _getCycle(self, n, g, visited=None, cycle=None):
+	def _getCycle(self, dest_index, g, visited=None, cycle=None):
 		if visited is None:
 			visited = set()
 		if cycle is None:
 			cycle = []
-		visited.add(n)
-		cycle += [n]
-		if n not in g:
+		visited.add(dest_index)
+		cycle += [dest_index]
+		if dest_index not in g:
 			return cycle
-		for e in g[n]:
+		for e in g[dest_index]:#e is src index?
 			if e not in visited:
 				cycle = self._getCycle(e,g,visited,cycle)
 		return cycle
@@ -398,44 +399,44 @@ class TSPSolver:
 	def _mergeCycles(self, cycle,G,RG,g,rg):
 		allInEdges = []
 		minInternal = None
-		minInternalWeight = sys.maxint
+		minInternalWeight = float("inf")
 
 		# find minimal internal edge weight
-		for n in cycle:
-			for e in RG[n]:
-				if e in cycle:
-					if minInternal is None or RG[n][e] < minInternalWeight:
-						minInternal = (n,e)
-						minInternalWeight = RG[n][e]
+		for cycle_index in cycle:
+			for RG_index in RG[cycle_index]:
+				if RG_index in cycle:
+					if minInternal is None or RG[cycle_index][RG_index] < minInternalWeight:
+						minInternal = (cycle_index,RG_index)
+						minInternalWeight = RG[cycle_index][RG_index]
 						continue
 				else:
-					allInEdges.append((n,e))
+					allInEdges.append((cycle_index,RG_index))
 
-					# find the incoming edge with minimum modified cost
+		# find the incoming edge with minimum modified cost
 		minExternal = None
 		minModifiedWeight = 0
 		for s,t in allInEdges:
-			u,v = rg[s].popitem()
-			rg[s][u] = v
-			w = RG[s][t] - (v - minInternalWeight)
-			if minExternal is None or minModifiedWeight > w:
+			u,cost = rg[s].popitem()#u is maybe destination index?
+			rg[s][u] = cost
+			weight = RG[s][t] - (cost - minInternalWeight)
+			if minExternal is None or minModifiedWeight > weight:
 				minExternal = (s,t)
-				minModifiedWeight = w
+				minModifiedWeight = weight
 
-		u,w = rg[minExternal[0]].popitem()
-		rem = (minExternal[0],u)
+		s_index,s_cost = rg[minExternal[0]].popitem()
+		rem = (minExternal[0],s_index)
 		rg[minExternal[0]].clear()
 		if minExternal[1] in rg:
-			rg[minExternal[1]][minExternal[0]] = w
+			rg[minExternal[1]][minExternal[0]] = s_cost
 		else:
-			rg[minExternal[1]] = { minExternal[0] : w }
+			rg[minExternal[1]] = { minExternal[0] : s_cost }
 		if rem[1] in g:
 			if rem[0] in g[rem[1]]:
 				del g[rem[1]][rem[0]]
 		if minExternal[1] in g:
-			g[minExternal[1]][minExternal[0]] = w
+			g[minExternal[1]][minExternal[0]] = s_cost
 		else:
-			g[minExternal[1]] = { minExternal[0] : w }
+			g[minExternal[1]] = { minExternal[0] : s_cost }
 
 	# --------------------------------------------------------------------------------- #
 
@@ -477,15 +478,15 @@ class TSPSolver:
 		if root in RG:
 			RG[root] = {}
 		g = {}
-		for n in RG:
-			if len(RG[n]) == 0:
+		for dest_index in RG:
+			if len(RG[dest_index]) == 0:
 				continue
 			minimum = float("inf")
-			s,d = None,None
-			for e in RG[n]:
-				if RG[n][e] < minimum:
-					minimum = RG[n][e]
-					s,d = n,e
+			s,d = None,None  #s is src_index, d is destination_index
+			for src_index in RG[dest_index]:#e = src index of the destination(the key of the dictionary)
+				if RG[dest_index][src_index] < minimum:
+					minimum = RG[dest_index][src_index]
+					s,d = dest_index,src_index
 			if d in g:
 				g[d][s] = RG[s][d]
 			else:
@@ -493,14 +494,14 @@ class TSPSolver:
 
 		cycles = []
 		visited = set()
-		for n in g:
-			if n not in visited:
-				cycle = self._getCycle(n,g,visited)
+		for dest_index in g:#find all cycles in graph
+			if dest_index not in visited:
+				cycle = self._getCycle(dest_index,g,visited)
 				cycles.append(cycle)
 
 		rg = self._reverse(g)
 		for cycle in cycles:
-			if root in cycle:
+			if root in cycle:#we don't merge the cycle with the root
 				continue
 			self._mergeCycles(cycle, G, RG, g, rg)
 
