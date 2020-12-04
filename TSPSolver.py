@@ -335,7 +335,7 @@ class TSPSolver:
 
 
 		g = self._load(arcs)
-		h = self.mst(int(cities[0]),g)
+		h = self.mst(int(cities[0]._index),g)
 		for s in h:
 			for t in h[s]:
 				print("%d-%d" % (s,t))
@@ -480,7 +480,7 @@ class TSPSolver:
 		for n in RG:
 			if len(RG[n]) == 0:
 				continue
-			minimum = sys.maxint
+			minimum = float("inf")
 			s,d = None,None
 			for e in RG[n]:
 				if RG[n][e] < minimum:
