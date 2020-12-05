@@ -623,7 +623,8 @@ class TSPSolver:
 			MST.append((v, closest, length))
 			odd_vert.remove(closest)
 
-
+	# MatchedMSTree is a list and stores tuple(u, v, W)
+	# G is a map. graph[this._index][another_point._index] = this.costTo(another_point)
 	def find_eulerian_tour(self, MatchedMSTree, G):
 		# find neigbours
 		neighbours = {}
