@@ -514,6 +514,11 @@ class TSPSolver:
 
 	def tsp(self, data):
 		# build a graph
+		count = 0
+		start_time = time.time()
+		max_queue_size = 0
+		total_states_created = 0
+		total_states_pruned = 0
 		G = self.build_graph(data)
 		print("Graph: ", G)
 
@@ -549,10 +554,27 @@ class TSPSolver:
 				length += G[current][v]
 				current = v
 
-		path.append(path[0])
+		# Append city instead of city's index.
+		path.append(self.cities[path[0]])
+
+		bssf = TSPSolution(path)
+		results = {}
+		if bssf.cost < self.BSSF:
+			end_time = time.time()
+			count += 1
+			self.BSSF = bssf.cost
+			results['cost'] = bssf.cost
+			results['time'] = end_time - start_time
+			results['count'] = count
+			results['soln'] = bssf
+			results['max'] = max_queue_size
+			results['total'] = total_states_created
+			results['pruned'] = total_states_pruned
+
 
 		print("Result path: ", path)
 		print("Result length of the path: ", length)
+		print("Result cost: ", bssf.cost)
 
 		return length, path
 
