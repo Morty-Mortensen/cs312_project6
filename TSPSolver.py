@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import math
+from copy import deepcopy
 
 from which_pyqt import PYQT_VER
 if PYQT_VER == 'PYQT5':
@@ -18,6 +19,7 @@ from TSPClasses import *
 import heapq
 import itertools
 import sys
+import greedy
 
 
 
@@ -83,76 +85,94 @@ class TSPSolver:
 		algorithm</returns> 
 	'''
 
-	def greedy( self,time_allowance=60.0 ):
-		results = {}
-		cities = self._scenario.getCities()
-		ncities = len(cities)
-		count = 0
+	def get_neighbors_costs(self, cur_city, cities_to_visit):
+		cost = []
+		for city_to_visit in cities_to_visit:
+			cost.append(cur_city.costTo(city_to_visit))
+		return cost
 
-		route = []
-		found_route = True
+	#The overall time complexity is O(n^3) since when we are looking around the neigbors to find the closest neighbor, we need to
+	# look n cities that are around the current city, so this takes O(n). Then, we repeat this process n times in order
+	# to return to the starting city, so O(n^2). Then, we will repeat this whole process for every single cities(n cities,) so I say
+	#it's O(n^3)
+	#The overall space complexity is O(n^2) since potential_bssf_cost array and potential_bssf_path array contains n lists and in each list,
+	#there will be n cities stored
+	def greedy(self, time_allowance=60.0):
+		#Time and space complexiies for each initialization is O(1)(except line 97) since it just assigning one
+		# value to the variable which takes constant time and needs one space to store a value
 		start_time = time.time()
-		starting_city = None
-		name_route = []
-		for i in range(len(cities)):
+		results = {}
+		potential_bssf_cost = []
+		potentioal_bbsf_path = []
 
-			curr_city = cities[i]
-			starting_city = cities[i]
-			route = []
-			name_route = []
-			route.append(curr_city)
-			name_route.append(curr_city._name)
-			found_route = True
-			count += 1
+		#Time and space complexites are O(n=number of city objests) since it needs n spaces to hold n city objects in a list
+		#so generating this list takes O(n) times
+		cities = self._scenario.getCities()
 
-			while True:
-				min_route_cost = np.inf
-				lowest_cost_city = None
-				for city in cities:
-					city_cost = curr_city.costTo(city)
-					if city not in route and city_cost < min_route_cost:
-						min_route_cost = city_cost
-						lowest_cost_city = city
+		self.num_cities = len(cities)
 
-				if lowest_cost_city is not None:
-					curr_city = lowest_cost_city
-					route.append(curr_city)
-					name_route.append(curr_city._name)
+		#Time complexity is O(n^3) please see the comment on line81
+		#Space complexity is O(n^2) please see the comment on line85
+		while time.time() - start_time < time_allowance:
+			for city_index in range(len(cities)):
+				#For initialization, time and space complexities are O(1) except when we are deepcopying n cities. (In this case,
+				# time and spcace complexities are O(n) since we need n spaces to store those cities and generating this array cost
+				# O(n).)
+				sum_cost = 0
+				starting_city = cities[city_index]
+				last_city = None
+				cities_to_visit = deepcopy(cities)
+				visited_cities = []
+				visited_cities.append(starting_city)
+				cur_city = starting_city
+				del cities_to_visit[city_index]
+
+				#Time complexity is O(n^2) since it going to loop through n times till no more city is left to visit, and for each
+				#citiy, we need to look n neibours to find the closest neighbor
+				#Space complecity is also O(n^2) since potential_bssf_cost array and potential_bssf_path
+				# array contains n lists and in each list, there will be n cities stored
+				while len(cities_to_visit) > 0:
+					#For time and space complexities for get_neighbors_costs function, see the description in this function below
+					neighbors_costs = self.get_neighbors_costs(cur_city, cities_to_visit)
+					if min(neighbors_costs) == float("inf"):
+						break
+					else:
+						closest_neighbor_index = neighbors_costs.index(min(neighbors_costs))
+						sum_cost += min(neighbors_costs)
+						closest_neighbor = cities_to_visit[closest_neighbor_index]
+						visited_cities.append(closest_neighbor)
+						cur_city = closest_neighbor
+						if len(cities_to_visit) == 1:
+							last_city = cities_to_visit[0]
+						del cities_to_visit[closest_neighbor_index]
+
+				if len(visited_cities) != len(cities):
+					continue
+
 				else:
-					# Check to if any city has been missed.
-					for city in cities:
-						if city not in route:
-							found_route = False
-							break
-					# Leave infinite loop
-					break
+					cost_from_last_city_to_first_city = last_city.costTo(starting_city)
+					if cost_from_last_city_to_first_city == float("inf"):
+						continue
+					else:
+						sum_cost += last_city.costTo(starting_city)
+						potential_bssf_cost.append(sum_cost)
+						potentioal_bbsf_path.append(visited_cities)
+			break
+		bssf_cost = min(potential_bssf_cost)
+		bssf_city_path = potentioal_bbsf_path[potential_bssf_cost.index(min(potential_bssf_cost))]
+		end_time = time.time()
 
-			# If all cities in route, break and return result, else, continue
-			to_start_cost = route[-1].costTo(starting_city)
-			if found_route and to_start_cost != np.inf:
-				break
-
-		if found_route:
-			bssf = TSPSolution(route)
-			end_time = time.time()
-			results['cost'] = bssf.cost
-			results['time'] = end_time - start_time
-			results['count'] = count
-			results['soln'] = bssf
-			results['max'] = None
-			results['total'] = None
-			results['pruned'] = None
-		else:
-			# No route was found.
-			end_time = time.time()
-			results['cost'] = math.inf
-			results['time'] = end_time - start_time
-			results['count'] = count
-			results['soln'] = math.inf
-			results['max'] = None
-			results['total'] = None
-			results['pruned'] = None
-
+		#Time and space complexities are both O(1) since it assigning a value is assigned to each variable and it just need one
+		#space to store that value except for line 159
+		results['cost'] = bssf_cost
+		results['time'] = end_time - start_time
+		results['count'] = len(potential_bssf_cost)
+		#Time complexity is O(n) since it's only looking at the cost per one city and space complexity is also O(n)
+		#since list that holds n cities is necessary
+		results['soln'] = TSPSolution(bssf_city_path)
+		results['max'] = None
+		results['total'] = None
+		results['pruned'] = None
 		return results
 
 
@@ -325,6 +345,8 @@ class TSPSolver:
 
 		# prices,names = self._input(filename)
 
+		initial_result = self.greedy()
+		self.BSSF = initial_result['cost']
 		self.cities = self._scenario.getCities()
 		ncities = len(self.cities)
 
