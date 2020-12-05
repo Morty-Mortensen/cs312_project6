@@ -530,7 +530,7 @@ class TSPSolver:
 		print("Minimum weight matching: ", MSTree)
 
 		# find an eulerian tour
-		eulerian_tour = find_eulerian_tour(MSTree, G)
+		eulerian_tour = self.find_eulerian_tour(MSTree, G)
 
 		print("Eulerian tour: ", eulerian_tour)
 
@@ -640,7 +640,7 @@ class TSPSolver:
 
 		# finds the hamiltonian circuit
 		start_vertex = MatchedMSTree[0][0]
-		EP = [neighbours[start_vertex][0]]
+		EP = [neighbours[start_vertex][0]]#
 
 		while len(MatchedMSTree) > 0:
 			for i, v in enumerate(EP):
@@ -648,17 +648,17 @@ class TSPSolver:
 					break
 
 			while len(neighbours[v]) > 0:
-				w = neighbours[v][0]
+				weight = neighbours[v][0]
 
-				self.remove_edge_from_matchedMST(MatchedMSTree, v, w)
+				self.remove_edge_from_matchedMST(MatchedMSTree, v, weight)
 
-				del neighbours[v][(neighbours[v].index(w))]
-				del neighbours[w][(neighbours[w].index(v))]
+				del neighbours[v][(neighbours[v].index(weight))]
+				del neighbours[weight][(neighbours[weight].index(v))]
 
 				i += 1
-				EP.insert(i, w)
+				EP.insert(i, weight)
 
-				v = w
+				v = weight
 
 		return EP
 
