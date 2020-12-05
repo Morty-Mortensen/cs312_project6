@@ -563,14 +563,13 @@ class TSPSolver:
 
 	def build_graph(self, data):
 		graph = {}
-		for this in range(len(data)):
-			for another_point in range(len(data)):
+		for this in data:
+			for another_point in data:
 				if this != another_point:
 					if this not in graph:
 						graph[this] = {}
 
-					graph[this][another_point] = self.get_length(data[this][0], data[this][1], data[another_point][0],
-															data[another_point][1])
+					graph[this._index][another_point._index] = this.costTo(another_point)
 
 		return graph
 
