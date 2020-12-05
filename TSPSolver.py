@@ -319,7 +319,33 @@ class TSPSolver:
 		# Return the best results (either optimal or best within the time limit.
 		return results
 
+	def reduce_matrix(self, row_reduced_matrix, ncities):
+		# Reduce rows.
+		updated_bound = 0.0
+		for i in range(ncities):
+			min_row_value = np.inf
+			for j in range(ncities):
+				if row_reduced_matrix[i][j] < min_row_value:
+					min_row_value = row_reduced_matrix[i][j]
+			for j in range(ncities):
+				if min_row_value != np.inf:
+					row_reduced_matrix[i][j] -= min_row_value
+			if min_row_value != np.inf:
+				updated_bound += min_row_value
 
+		# Reduce columns.
+		for i in range(ncities):
+			min_col_value = np.inf
+			for j in range(ncities):
+				if row_reduced_matrix[j][i] < min_col_value:
+					min_col_value = row_reduced_matrix[j][i]
+			for j in range(ncities):
+				if min_col_value != np.inf:
+					row_reduced_matrix[j][i] -= min_col_value
+			if min_col_value != np.inf:
+				updated_bound += min_col_value
+
+		return row_reduced_matrix, updated_bound
 
 
 
@@ -335,270 +361,183 @@ class TSPSolver:
 	'''
 
 	def fancy( self,time_allowance=60.0 ):
-		# try:
-		# 	filename = sys.argv[1]
-		# 	root = sys.argv[2]
-		# except IndexError:
-		# 	sys.stderr.write('no input and/or root node specified\n')
-		# 	sys.stderr.write('usage: python edmonds.py <file> <root>\n')
-		# 	sys.exit(1)
-
-		# prices,names = self._input(filename)
+		count = 0
+		start_time = time.time()
+		results = {}
 
 		initial_result = self.greedy()
+		greedy_bssf = initial_result['soln']
+		self.greedy_route = greedy_bssf.route
+
 		self.BSSF = initial_result['cost']
 		self.cities = self._scenario.getCities()
 		ncities = len(self.cities)
 
-		city_pairs = []
-		for city in self.cities:#city is the starting city
-			for inner_city in self.cities:#inner_city is destination city
-				if inner_city != city:
-					city_pairs.append((city,inner_city))
+		valid_paths = []
+
+		invalid_from_to_cities = []
+
+		# while True:
+		while (time.time() - start_time) < 10:
+			city_pairs = []
+			for city in self.cities:#city is the starting city
+				for inner_city in self.cities:#inner_city is destination city
+					if inner_city != city and (city._index,inner_city._index) not in invalid_from_to_cities and city.costTo(inner_city) != float("inf"):
+						city_pairs.append((city,inner_city))
+
+			try:
+				bssf,path = self.tsp(city_pairs, invalid_from_to_cities)
+
+				if bssf.cost == float("inf") or len(bssf.route) != len(self.cities):
+					for i in range(len(path)):
+						if i != len(path)-1 and path[i].costTo(path[i+1]) == float("inf"):
+							invalid_from_to_cities.append((path[i]._index, path[i+1]._index))
+				else:
+					print(f'Cost: {bssf.cost} vs BSSF: {self.BSSF}')
+					valid_paths.append((bssf.cost, path))
+					if bssf.cost < self.BSSF:
+						results.clear()
+						end_time = time.time()
+						count += 1
+						self.BSSF = bssf.cost
+						results['cost'] = bssf.cost
+						results['time'] = end_time - start_time
+						results['count'] = count
+						results['soln'] = bssf
+						results['max'] = None
+						results['total'] = None
+						results['pruned'] = None
+			except:
+				print("Invalid Path")
 
 
-		self.tsp(city_pairs)
 
-		# g = self._load(arcs)
-		# h = self.mst(int(self.cities[0]._index),g)
-		# for s in h:
-		# 	for t in h[s]:
-		# 		print("%d-%d" % (s,t))
+		updated_valid_paths = []
 
+		if len(valid_paths) == 0:
+			updated_valid_paths.append((self.BSSF, self.greedy_route))
+		else:
+			for i in range(len(valid_paths)):
+				min_cost = float("inf")
+				best_path = []
+				for path_cost,path in valid_paths:
+					if path_cost < min_cost and (path_cost,path) not in updated_valid_paths:
+						min_cost = path_cost
+						best_path = path.copy()
 
-
-	# # --------------------------------------------------------------------------------- #
-	#
-	# def _input(self, filename):
-	# 	prices = {}
-	# 	names = {}
-	#
-	# 	for line in open(filename, "r").readlines():
-	# 		(name, src, dst, price) = line.rstrip().split()
-	# 		name = int(name.replace('M',''))
-	# 		src = int(src.replace('C',''))
-	# 		dst = int(dst.replace('C',''))
-	# 		price = int(price)
-	# 		t = (src,dst)
-	# 		if t in prices and prices[t] <= price:
-	# 			continue
-	# 		prices[t] = price
-	# 		names[t] = name
-	#
-	# 	return prices,names
-	#
-	# def _load(self, arcs):
-	# 	g = {}
-	# 	for (src,dst) in arcs:
-	# 		if src._index in g:
-	# 			g[src._index][dst._index] = src.costTo(dst)
-	# 		else:
-	# 			g[src._index] = { dst._index : src.costTo(dst) }
-	# 	return g
-	#
-	# def _reverse(self, graph):
-	# 	r = {}
-	# 	for src_index in graph:
-	# 		for (dst_index,c) in graph[src_index].items():#item() = { dst._index : src.costTo(dst) }
-	# 			if dst_index in r:
-	# 				r[dst_index][src_index] = c
-	# 			else:
-	# 				r[dst_index] = { src_index : c }
-	# 	return r
-	#
-	# def _getCycle(self, dest_index, g, visited=None, cycle=None):
-	# 	if visited is None:
-	# 		visited = set()
-	# 	if cycle is None:
-	# 		cycle = []
-	# 	visited.add(dest_index)
-	# 	cycle += [dest_index]
-	# 	if dest_index not in g:
-	# 		return cycle
-	# 	for e in g[dest_index]:#e is src index?
-	# 		if e not in visited:
-	# 			cycle = self._getCycle(e,g,visited,cycle)
-	# 	return cycle
-	#
-	# def _mergeCycles(self, cycle,G,RG,g,rg):
-	# 	allInEdges = []
-	# 	minInternal = None
-	# 	minInternalWeight = float("inf")
-	#
-	# 	# find minimal internal edge weight
-	# 	for cycle_index in cycle:
-	# 		for RG_index in RG[cycle_index]:
-	# 			if RG_index in cycle:
-	# 				if minInternal is None or RG[cycle_index][RG_index] < minInternalWeight:
-	# 					minInternal = (cycle_index,RG_index)
-	# 					minInternalWeight = RG[cycle_index][RG_index]
-	# 					continue
-	# 			else:
-	# 				allInEdges.append((cycle_index,RG_index))
-	#
-	# 	# find the incoming edge with minimum modified cost
-	# 	minExternal = None
-	# 	minModifiedWeight = 0
-	# 	for s,t in allInEdges:
-	# 		u,cost = rg[s].popitem()#u is maybe destination index?
-	# 		rg[s][u] = cost
-	# 		weight = RG[s][t] - (cost - minInternalWeight)
-	# 		if minExternal is None or minModifiedWeight > weight:
-	# 			minExternal = (s,t)
-	# 			minModifiedWeight = weight
-	#
-	# 	s_index,s_cost = rg[minExternal[0]].popitem()
-	# 	rem = (minExternal[0],s_index)
-	# 	rg[minExternal[0]].clear()
-	# 	if minExternal[1] in rg:
-	# 		rg[minExternal[1]][minExternal[0]] = s_cost
-	# 	else:
-	# 		rg[minExternal[1]] = { minExternal[0] : s_cost }
-	# 	if rem[1] in g:
-	# 		if rem[0] in g[rem[1]]:
-	# 			del g[rem[1]][rem[0]]
-	# 	if minExternal[1] in g:
-	# 		g[minExternal[1]][minExternal[0]] = s_cost
-	# 	else:
-	# 		g[minExternal[1]] = { minExternal[0] : s_cost }
-	#
-	# # --------------------------------------------------------------------------------- #
-	#
-	# def mst(self, root,G):
-	# 	""" The Chu-Lui/Edmond's algorithm
-	# 	arguments:
-	# 	root - the root of the MST
-	# 	G - the graph in which the MST lies
-	# 	returns: a graph representation of the MST
-	# 	Graph representation is the same as the one found at:
-	# 	http://code.activestate.com/recipes/119466/
-	# 	Explanation is copied verbatim here:
-	# 	The input graph G is assumed to have the following
-	# 	representation: A vertex can be any object that can
-	# 	be used as an index into a dictionary.  G is a
-	# 	dictionary, indexed by vertices.  For any vertex v,
-	# 	G[v] is itself a dictionary, indexed by the neighbors
-	# 	of v.  For any edge v->w, G[v][w] is the length of
-	# 	the edge.  This is related to the representation in
-	# 	<http://www.python.org/doc/essays/graphs.html>
-	# 	where Guido van Rossum suggests representing graphs
-	# 	as dictionaries mapping vertices to lists of neighbors,
-	# 	however dictionaries of edges have many advantages
-	# 	over lists: they can store extra information (here,
-	# 	the lengths), they support fast existence tests,
-	# 	and they allow easy modification of the graph by edge
-	# 	insertion and removal.  Such modifications are not
-	# 	needed here but are important in other graph algorithms.
-	# 	Since dictionaries obey iterator protocol, a graph
-	# 	represented as described here could be handed without
-	# 	modification to an algorithm using Guido's representation.
-	# 	Of course, G and G[v] need not be Python dict objects;
-	# 	they can be any other object that obeys dict protocol,
-	# 	for instance a wrapper in which vertices are URLs
-	# 	and a call to G[v] loads the web page and finds its links.
-	# 	"""
-	#
-	# 	RG = self._reverse(G)
-	# 	if root in RG:
-	# 		RG[root] = {}
-	# 	g = {}
-	# 	for dest_index in RG:
-	# 		if len(RG[dest_index]) == 0:
-	# 			continue
-	# 		minimum = float("inf")
-	# 		s,d = None,None  #s is src_index, d is destination_index
-	# 		for src_index in RG[dest_index]:#e = src index of the destination(the key of the dictionary)
-	# 			if RG[dest_index][src_index] < minimum:
-	# 				minimum = RG[dest_index][src_index]
-	# 				s,d = dest_index,src_index
-	# 		if d in g:
-	# 			g[d][s] = RG[s][d]
-	# 		else:
-	# 			g[d] = { s : RG[s][d] }
-	#
-	# 	cycles = []
-	# 	visited = set()
-	# 	for dest_index in g:#find all cycles in graph
-	# 		if dest_index not in visited:
-	# 			cycle = self._getCycle(dest_index,g,visited)
-	# 			cycles.append(cycle)
-	#
-	# 	rg = self._reverse(g)
-	# 	for cycle in cycles:
-	# 		if root in cycle:#we don't merge the cycle with the root
-	# 			continue
-	# 		self._mergeCycles(cycle, G, RG, g, rg)
-	#
-	# 	return g
-	#
-	# # --------------------------------------------------------------------------------- #
+				updated_valid_paths.append((min_cost, best_path))
 
 
-	def tsp(self, data):
+
+		for path_cost,path in updated_valid_paths:
+			for i in range(len(path)):
+				if i != 0 and i != len(path) -1:
+					orig_cost = path[i].costTo(path[i+1])
+					prev_orig_cost = path[i-1].costTo(path[i])
+					for curr_city in self.cities:
+						if curr_city != path[i] and curr_city != path[i+1]:
+							curr_city_cost = curr_city.costTo(path[i+1])
+							prev_city_cost = path[i-1].costTo(curr_city)
+							if curr_city_cost < orig_cost and prev_city_cost < prev_orig_cost: # if 1500 < 1600 = 100,  if 12000 - 100 < self.BSSF, updated self.BSSF
+								updated_path_cost = path_cost - (abs(orig_cost - curr_city_cost) + abs(prev_orig_cost - prev_city_cost))
+								if (updated_path_cost < self.BSSF):
+									path_cost = updated_path_cost
+									new_path = path.copy()
+									new_path[i] = curr_city
+									bssf = TSPSolution(new_path)
+									results.clear()
+									end_time = time.time()
+									count += 1
+									self.BSSF = updated_path_cost
+									results['cost'] = updated_path_cost
+									results['time'] = end_time - start_time
+									results['count'] = count
+									results['soln'] = bssf
+									results['max'] = None
+									results['total'] = None
+									results['pruned'] = None
+						if time.time() - start_time > time_allowance:
+							break
+					if time.time() - start_time > time_allowance:
+						break
+				if time.time() - start_time > time_allowance:
+					break
+			if time.time() - start_time > time_allowance:
+				break
+
+
+
+		if len(results) == 0:
+			end_time = time.time()
+			results['cost'] = self.BSSF
+			results['time'] = end_time - start_time
+			results['count'] = count
+			results['soln'] = self.greedy_route
+			results['max'] = None
+			results['total'] = None
+			results['pruned'] = None
+
+		return results
+
+
+	def tsp(self, data, invalid_from_to_cities):
 		# build a graph
-		count = 0
-		start_time = time.time()
-		max_queue_size = 0
-		total_states_created = 0
-		total_states_pruned = 0
 		G = self.build_graph(data)
-		print("Graph: ", G)
+		# print("Graph: ", G)
 
 		# build a minimum spanning tree
 		MSTree = self.minimum_spanning_tree(G)
-		print("MSTree: ", MSTree)
+		# print("MSTree: ", MSTree)
 
 		# find odd vertexes
 		odd_vertexes = self.find_odd_vertexes(MSTree)
 		print("Odd vertexes in MSTree: ", odd_vertexes)
-
+		# odd_vertexes = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]
 		# add minimum weight matching edges to MST
 		self.minimum_weight_matching(MSTree, G, odd_vertexes)
-		print("Minimum weight matching: ", MSTree)
+		# print("Minimum weight matching: ", MSTree)
+
+		updateMSTree = []
+		for src_index,dest_index,cost in MSTree:
+			if (src_index, dest_index) not in invalid_from_to_cities:
+				updateMSTree.append((src_index,dest_index,cost))
+
+		# print("UPDATED Minimum weight matching: ", updateMSTree)
 
 		# find an eulerian tour
-		eulerian_tour = self.find_eulerian_tour(MSTree, G)
+		eulerian_tour = self.find_eulerian_tour(updateMSTree, G)
 
-		print("Eulerian tour: ", eulerian_tour)
+		# print("Eulerian tour: ", eulerian_tour)
 
 		current = eulerian_tour[0]
-		path = [current]
+		path = [self.cities[current]]
 		visited = [False] * len(eulerian_tour)
-		visited[0] = True
+		visited[current] = True
 
 		length = 0
+		v_index = -1
+		try:
+			for v in eulerian_tour[1:]:
+				v_index = v
+				if not visited[v]:
+					path.append(self.cities[v])
+					visited[v] = True
 
-		for v in eulerian_tour[1:]:
-			if not visited[v]:
-				path.append(v)
-				visited[v] = True
+					length += G[current][v]
+					current = v
+		except:
+			invalid_from_to_cities.append((current, v_index))
 
-				length += G[current][v]
-				current = v
 
-		# Append city instead of city's index.
-		path.append(self.cities[path[0]])
 
+
+		print("PATH:")
+		for city in path:
+			print(city._index, end=" ")
+		print()
 		bssf = TSPSolution(path)
-		results = {}
-		if bssf.cost < self.BSSF:
-			end_time = time.time()
-			count += 1
-			self.BSSF = bssf.cost
-			results['cost'] = bssf.cost
-			results['time'] = end_time - start_time
-			results['count'] = count
-			results['soln'] = bssf
-			results['max'] = max_queue_size
-			results['total'] = total_states_created
-			results['pruned'] = total_states_pruned
 
-
-		print("Result path: ", path)
-		print("Result length of the path: ", length)
-		print("Result cost: ", bssf.cost)
-
-		return length, path
+		return bssf, path
 
 
 	def get_length(self, x1, y1, x2, y2):
@@ -656,14 +595,15 @@ class TSPSolver:
 			v = odd_vert.pop()
 			length = float("inf")
 			u = 1
-			closest = 0
+			closest = -1
 			for u in odd_vert:
-				if v != u and G[v][u] < length:
+				if v != u and u in G[v].keys() and G[v][u] < length:
 					length = G[v][u]
 					closest = u
 
-			MST.append((v, closest, length))
-			odd_vert.remove(closest)
+			if closest != -1:
+				MST.append((v, closest, length))
+				odd_vert.remove(closest)
 
 	# MatchedMSTree is a list and stores tuple(u, v, W)
 	# G is a map. graph[this._index][another_point._index] = this.costTo(another_point)
@@ -677,27 +617,36 @@ class TSPSolver:
 			if edge[1] not in neighbours:
 				neighbours[edge[1]] = []
 
-			neighbours[edge[0]].append(edge[1])
-			neighbours[edge[1]].append(edge[0])
+			if self.cities[edge[0]].costTo(self.cities[edge[1]]) != float("inf"):
+				neighbours[edge[0]].append(edge[1])
 
-		# print("Neighbours: ", neighbours)
+			if self.cities[edge[1]].costTo(self.cities[edge[0]]) != float("inf"):
+				neighbours[edge[1]].append(edge[0])
+
+
 
 		# finds the hamiltonian circuit
 		start_vertex = MatchedMSTree[0][0]
 		EP = [neighbours[start_vertex][0]]#
 
 		while len(MatchedMSTree) > 0:
+			found_match = False
 			for i, v in enumerate(EP):
 				if len(neighbours[v]) > 0:
+					found_match = True
 					break
+			if found_match == False:
+				break
 
 			while len(neighbours[v]) > 0:
 				weight = neighbours[v][0]
 
 				self.remove_edge_from_matchedMST(MatchedMSTree, v, weight)
 
+				# if weight not in removedIndexes:
 				del neighbours[v][(neighbours[v].index(weight))]
-				del neighbours[weight][(neighbours[weight].index(v))]
+				if v in neighbours[weight]:
+					del neighbours[weight][(neighbours[weight].index(v))]
 
 				i += 1
 				EP.insert(i, weight)
@@ -767,34 +716,6 @@ class UnionFind:
 
 
 
-
-	def reduce_matrix(self, row_reduced_matrix, ncities):
-		# Reduce rows.
-		updated_bound = 0.0
-		for i in range(ncities):
-			min_row_value = np.inf
-			for j in range(ncities):
-				if row_reduced_matrix[i][j] < min_row_value:
-					min_row_value = row_reduced_matrix[i][j]
-			for j in range(ncities):
-				if min_row_value != np.inf:
-					row_reduced_matrix[i][j] -= min_row_value
-			if min_row_value != np.inf:
-				updated_bound += min_row_value
-
-		# Reduce columns.
-		for i in range(ncities):
-			min_col_value = np.inf
-			for j in range(ncities):
-				if row_reduced_matrix[j][i] < min_col_value:
-					min_col_value = row_reduced_matrix[j][i]
-			for j in range(ncities):
-				if min_col_value != np.inf:
-					row_reduced_matrix[j][i] -= min_col_value
-			if min_col_value != np.inf:
-				updated_bound += min_col_value
-
-		return row_reduced_matrix, updated_bound
 
 
 class State:
